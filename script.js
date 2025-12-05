@@ -2,66 +2,81 @@ const $ = id => document.getElementById(id);
 
 const addBtn = $("addBtn");
 const todoInput = $("todoInput");
+const todoDetails = $("todoDetails");
 const todoList = $("todoList");
 const pagination = $("pagination");
 const errorBox = document.querySelector(".error-message");
 
-let todos = []; // локальный массив задач
+let todos = [];
 const itemsPerPage = 3;
 let currentPage = 1;
 
-/* ===== Загрузка задач из Supabase ===== */
+/* ===== Load tasks ===== */
 loadTodos();
 
 async function loadTodos() {
   try {
     const { data, error } = await supabase
-      .from("whattodoapp")      // <-- твоя таблица
-      .select("id, text")
+      .from("whattodoapp")
+      .select("id, text, details")
       .order("id", { ascending: false });
 
     if (!error && data) {
-      todos = data.map(t => ({ id: t.id, text: t.text }));
+      todos = data.map(t => ({
+        id: t.id,
+        text: t.text,
+        details: t.details || ""
+      }));
       localStorage.setItem("todos", JSON.stringify(todos));
     } else {
       todos = JSON.parse(localStorage.getItem("todos")) || [];
     }
-  } catch (e) {
+  } catch {
     todos = JSON.parse(localStorage.getItem("todos")) || [];
   }
 
   render();
 }
 
-/* ===== Добавление задачи ===== */
+/* ===== Add task ===== */
 addBtn.onclick = async () => {
   const text = todoInput.value.trim();
+  const details = todoDetails.value.trim();
+
   if (!text) return showError("Enter a task");
 
-  todos.unshift({ text }); // добавляем локально
+  todos.unshift({ text, details });
   localStorage.setItem("todos", JSON.stringify(todos));
+
   todoInput.value = "";
+  todoDetails.value = "";
   currentPage = 1;
   render();
 
   try {
     const { data, error } = await supabase
-      .from("whattodoapp")      // <-- твоя таблица
-      .insert([{ text }])
-      .select("id, text")
+      .from("whattodoapp")
+      .insert([{ text, details }])
+      .select("id, text, details")
       .limit(1);
 
     if (!error && data?.length) {
-      todos[0] = { id: data[0].id, text: data[0].text }; // обновляем id
+      todos[0] = {
+        id: data[0].id,
+        text: data[0].text,
+        details: data[0].details
+      };
+
       localStorage.setItem("todos", JSON.stringify(todos));
       render();
     }
-  } catch (e) {
+
+  } catch {
     showError("Saved locally — will sync when online");
   }
 };
 
-/* ===== Рендер всех задач ===== */
+/* ===== Render ===== */
 function render() {
   renderTodos();
   renderPagination();
@@ -75,9 +90,15 @@ function renderTodos() {
     const li = document.createElement("li");
     li.className = "todo-item";
     li.innerHTML = `
-      <span class="todo-text">${escapeHtml(item.text)}</span>
-      <button class="edit-btn">Edit</button>
-      <button class="delete-btn">Delete</button>
+      <div class="task-block">
+        <div class="todo-text">${escapeHtml(item.text)}</div>
+        <div class="todo-details">${escapeHtml(item.details || "")}</div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <button class="edit-btn">Edit</button>
+        <button class="delete-btn">Delete</button>
+      </div>
     `;
 
     li.querySelector(".edit-btn").onclick = () => editTask(start + i, li);
@@ -87,7 +108,7 @@ function renderTodos() {
   });
 }
 
-/* ===== Пагинация ===== */
+/* ===== Pagination ===== */
 function renderPagination() {
   pagination.innerHTML = "";
   const pages = Math.max(1, Math.ceil(todos.length / itemsPerPage));
@@ -102,31 +123,38 @@ function renderPagination() {
   }
 }
 
-/* ===== Редактирование задачи ===== */
+/* ===== Edit ===== */
 function editTask(index, li) {
   const item = todos[index];
+
   li.innerHTML = `
-    <input class="todo-text" value="${escapeHtml(item.text)}">
+    <input class="todo-input" value="${escapeHtml(item.text)}">
+    <input class="todo-input" value="${escapeHtml(item.details)}">
+
     <button class="save-btn">Save</button>
     <button class="delete-btn">Delete</button>
   `;
 
   li.querySelector(".save-btn").onclick = async () => {
-    const value = li.querySelector("input").value.trim();
-    if (!value) return showError("Task cannot be empty");
+    const newText = li.querySelectorAll("input")[0].value.trim();
+    const newDetails = li.querySelectorAll("input")[1].value.trim();
+
+    if (!newText) return showError("Task cannot be empty");
 
     const old = item;
-    todos[index].text = value;
+
+    todos[index].text = newText;
+    todos[index].details = newDetails;
     localStorage.setItem("todos", JSON.stringify(todos));
     render();
 
     if (old.id) {
       try {
         await supabase
-          .from("whattodoapp")     // <-- твоя таблица
-          .update({ text: value })
+          .from("whattodoapp")
+          .update({ text: newText, details: newDetails })
           .eq("id", old.id);
-      } catch (e) {
+      } catch {
         showError("Saved locally — will sync when online");
       }
     }
@@ -135,23 +163,26 @@ function editTask(index, li) {
   li.querySelector(".delete-btn").onclick = () => deleteTask(index);
 }
 
-/* ===== Удаление задачи ===== */
+/* ===== Delete ===== */
 async function deleteTask(index) {
   const removed = todos.splice(index, 1)[0];
   localStorage.setItem("todos", JSON.stringify(todos));
-  if ((currentPage - 1) * itemsPerPage >= todos.length) currentPage = Math.max(1, currentPage - 1);
+
+  if ((currentPage - 1) * itemsPerPage >= todos.length)
+    currentPage = Math.max(1, currentPage - 1);
+
   render();
 
   if (removed.id) {
     try {
       await supabase.from("whattodoapp").delete().eq("id", removed.id);
-    } catch (e) {
+    } catch {
       showError("Deleted locally — will sync when online");
     }
   }
 }
 
-/* ===== Вспомогательные функции ===== */
+/* ===== Helpers ===== */
 function showError(text) {
   errorBox.textContent = text;
   errorBox.style.display = "block";
@@ -159,5 +190,11 @@ function showError(text) {
 }
 
 function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[c]));
 }
