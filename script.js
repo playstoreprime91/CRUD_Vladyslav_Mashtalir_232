@@ -8,17 +8,17 @@ const todoList = $("todoList");
 const pagination = $("pagination");
 const errorBox = $("errorMessage");
 
-let todos = []; // lokalny array z zadaniami
+let todos = []; 
 const itemsPerPage = 3;
 let currentPage = 1;
 
-/* ===== Load todos from Supabase ===== */
+
 loadTodos();
 
 async function loadTodos() {
   try {
     const { data, error } = await supabase
-      .from("tasks")             // nowa tabela
+      .from("tasks")          
       .select("id, title, description, due_date")
       .order("id", { ascending: false });
 
@@ -39,7 +39,7 @@ async function loadTodos() {
   render();
 }
 
-/* ===== Add new task ===== */
+
 addBtn.onclick = async () => {
   const title = titleInput.value.trim();
   const description = descInput.value.trim();
@@ -73,7 +73,7 @@ addBtn.onclick = async () => {
   }
 };
 
-/* ===== Render all tasks ===== */
+
 function render() {
   renderTodos();
   renderPagination();
@@ -103,7 +103,7 @@ function renderTodos() {
   });
 }
 
-/* ===== Pagination ===== */
+
 function renderPagination() {
   pagination.innerHTML = "";
   const pages = Math.max(1, Math.ceil(todos.length / itemsPerPage));
@@ -118,7 +118,7 @@ function renderPagination() {
   }
 }
 
-/* ===== Edit task ===== */
+
 function editTask(index, li) {
   const item = todos[index];
   li.innerHTML = `
@@ -156,7 +156,7 @@ function editTask(index, li) {
   li.querySelector(".delete-btn").onclick = () => deleteTask(index);
 }
 
-/* ===== Delete task ===== */
+
 async function deleteTask(index) {
   const removed = todos.splice(index, 1)[0];
   localStorage.setItem("todos", JSON.stringify(todos));
@@ -173,7 +173,7 @@ async function deleteTask(index) {
   }
 }
 
-/* ===== Helpers ===== */
+
 function showError(text) {
   errorBox.textContent = text;
   errorBox.style.display = "block";
