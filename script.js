@@ -1,185 +1,197 @@
-const $ = id => document.getElementById(id);
-
-const addBtn = $("addBtn");
-const titleInput = $("titleInput");
-const descInput = $("descInput");
-const dueInput = $("dueInput");
-const todoList = $("todoList");
-const pagination = $("pagination");
-const errorBox = $("errorMessage");
-
-let todos = []; 
-const itemsPerPage = 3;
-let currentPage = 1;
-
-
-loadTodos();
-
-async function loadTodos() {
-  try {
-    const { data, error } = await supabase
-      .from("tasks")          
-      .select("id, title, description, due_date")
-      .order("id", { ascending: false });
-
-    if (!error && data) {
-      todos = data.map(t => ({
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        due_date: t.due_date
-      }));
-      localStorage.setItem("todos", JSON.stringify(todos));
-    } else {
-      todos = JSON.parse(localStorage.getItem("todos")) || [];
-    }
-  } catch (e) {
-    todos = JSON.parse(localStorage.getItem("todos")) || [];
-  }
-  render();
+// skript.js - vanilla JS + supabase-js
+if (!window.Supabase) {
+  // supabase v2 exposes `Supabase` global via CDN packaging; but we can also access via window.supabase
 }
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const table = "tasks"; // nazwa encji / tabeli
 
-addBtn.onclick = async () => {
-  const title = titleInput.value.trim();
-  const description = descInput.value.trim();
-  const due_date = dueInput.value;
+// DOM
+const form = document.getElementById("task-form");
+const titleInput = document.getElementById("title");
+const descInput = document.getElementById("description");
+const priorityInput = document.getElementById("priority");
+const dueDateInput = document.getElementById("due_date");
+const completedInput = document.getElementById("completed");
+const idInput = document.getElementById("task-id");
+const tasksBody = document.getElementById("tasks-body");
+const emptyBox = document.getElementById("empty");
+const formTitle = document.getElementById("form-title");
+const cancelBtn = document.getElementById("cancel-edit");
+const searchInput = document.getElementById("search");
+const filterSelect = document.getElementById("filter");
+const refreshBtn = document.getElementById("refresh");
 
-  if (!title) return showError("Title is required");
-
-  const newTask = { title, description, due_date };
-  todos.unshift(newTask);
-  localStorage.setItem("todos", JSON.stringify(todos));
-  titleInput.value = "";
-  descInput.value = "";
-  dueInput.value = "";
-  currentPage = 1;
-  render();
-
-  try {
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert([newTask])
-      .select("id, title, description, due_date")
-      .limit(1);
-
-    if (!error && data?.length) {
-      todos[0] = data[0]; // aktualizacja id
-      localStorage.setItem("todos", JSON.stringify(todos));
-      render();
-    }
-  } catch (e) {
-    showError("Saved locally — will sync when online");
-  }
-};
-
-
-function render() {
-  renderTodos();
-  renderPagination();
+// helpers
+function showEmpty(show) {
+  emptyBox.style.display = show ? "block" : "none";
 }
-
-function renderTodos() {
-  todoList.innerHTML = "";
-  const start = (currentPage - 1) * itemsPerPage;
-
-  todos.slice(start, start + itemsPerPage).forEach((item, i) => {
-    const li = document.createElement("li");
-    li.className = "todo-item";
-    li.innerHTML = `
-      <div>
-        <strong>${escapeHtml(item.title)}</strong><br>
-        <small>${escapeHtml(item.description)}</small><br>
-        <em>${item.due_date || ""}</em>
-      </div>
-      <button class="edit-btn">Edit</button>
-      <button class="delete-btn">Delete</button>
-    `;
-
-    li.querySelector(".edit-btn").onclick = () => editTask(start + i, li);
-    li.querySelector(".delete-btn").onclick = () => deleteTask(start + i);
-
-    todoList.append(li);
-  });
-}
-
-
-function renderPagination() {
-  pagination.innerHTML = "";
-  const pages = Math.max(1, Math.ceil(todos.length / itemsPerPage));
-
-  for (let i = 1; i <= pages; i++) {
-    const btn = document.createElement("button");
-    btn.className = "pagination-btn";
-    btn.textContent = i;
-    btn.disabled = i === currentPage;
-    btn.onclick = () => { currentPage = i; render(); };
-    pagination.append(btn);
-  }
-}
-
-
-function editTask(index, li) {
-  const item = todos[index];
-  li.innerHTML = `
-    <input class="todo-text" id="editTitle" value="${escapeHtml(item.title)}" placeholder="Title">
-    <input class="todo-text" id="editDesc" value="${escapeHtml(item.description)}" placeholder="Description">
-    <input type="date" class="todo-text" id="editDue" value="${item.due_date || ""}">
-    <button class="save-btn">Save</button>
-    <button class="delete-btn">Delete</button>
+function rowHtml(task){
+  return `
+    <tr data-id="${task.id}">
+      <td>${escapeHtml(task.title)}</td>
+      <td>${task.priority ?? ""}</td>
+      <td>${task.due_date ? new Date(task.due_date).toLocaleDateString() : ""}</td>
+      <td>${task.completed ? '<span class="badge done">Tak</span>' : '<span class="badge pending">Nie</span>'}</td>
+      <td>
+        <button class="small" data-action="view">Szczegóły</button>
+        <button class="small" data-action="edit">Edytuj</button>
+        <button class="small delete" data-action="delete">Usuń</button>
+      </td>
+    </tr>
   `;
-
-  li.querySelector(".save-btn").onclick = async () => {
-    const valueTitle = li.querySelector("#editTitle").value.trim();
-    const valueDesc = li.querySelector("#editDesc").value.trim();
-    const valueDue = li.querySelector("#editDue").value;
-
-    if (!valueTitle) return showError("Title cannot be empty");
-
-    const old = { ...item };
-    todos[index] = { ...item, title: valueTitle, description: valueDesc, due_date: valueDue };
-    localStorage.setItem("todos", JSON.stringify(todos));
-    render();
-
-    if (old.id) {
-      try {
-        await supabase
-          .from("tasks")
-          .update({ title: valueTitle, description: valueDesc, due_date: valueDue })
-          .eq("id", old.id);
-      } catch (e) {
-        showError("Saved locally — will sync when online");
-      }
-    }
-  };
-
-  li.querySelector(".delete-btn").onclick = () => deleteTask(index);
 }
+function escapeHtml(s){ if (!s) return ""; return s.replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
-
-async function deleteTask(index) {
-  const removed = todos.splice(index, 1)[0];
-  localStorage.setItem("todos", JSON.stringify(todos));
-
-  if ((currentPage - 1) * itemsPerPage >= todos.length) currentPage = Math.max(1, currentPage - 1);
-  render();
-
-  if (removed.id) {
-    try {
-      await supabase.from("tasks").delete().eq("id", removed.id);
-    } catch (e) {
-      showError("Deleted locally — will sync when online");
+// load list
+async function loadTasks(){
+  tasksBody.innerHTML = "";
+  showEmpty(false);
+  try {
+    let query = supabaseClient.from(table).select("*").order("created_at",{ascending:false});
+    const q = searchInput.value.trim();
+    if (q){
+      // filter: title ilike
+      query = query.ilike("title", `%${q}%`);
     }
+    const filter = filterSelect.value;
+    if (filter === "pending") query = query.eq("completed", false);
+    if (filter === "done") query = query.eq("completed", true);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0){
+      showEmpty(true);
+      return;
+    }
+    tasksBody.innerHTML = data.map(rowHtml).join("");
+  } catch (err){
+    console.error(err);
+    alert("Błąd podczas ładowania: " + (err.message || err));
   }
 }
 
-
-function showError(text) {
-  errorBox.textContent = text;
-  errorBox.style.display = "block";
-  setTimeout(() => (errorBox.style.display = "none"), 3000);
+// create
+async function createTask(payload){
+  // payload: { title, description, priority, due_date, completed }
+  // Basic validation
+  if (!payload.title || payload.title.trim().length < 1) {
+    throw new Error("Tytuł jest wymagany.");
+  }
+  if (!Number.isInteger(payload.priority)) throw new Error("Priorytet musi być liczbą całkowitą.");
+  const { data, error } = await supabaseClient.from(table).insert([payload]).select().single();
+  if (error) throw error;
+  return data;
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// update
+async function updateTask(id, payload){
+  const { data, error } = await supabaseClient.from(table).update(payload).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
 }
+
+// delete
+async function deleteTask(id){
+  const { data, error } = await supabaseClient.from(table).delete().eq("id", id);
+  if (error) throw error;
+  return data;
+}
+
+// load single
+async function getTask(id){
+  const { data, error } = await supabaseClient.from(table).select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+
+// form submit
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const id = idInput.value || null;
+  const payload = {
+    title: titleInput.value.trim(),
+    description: descInput.value.trim() || null,
+    priority: Math.floor(Number(priorityInput.value)) || 1,
+    due_date: dueDateInput.value ? new Date(dueDateInput.value).toISOString() : null,
+    completed: completedInput.checked
+  };
+  try {
+    if (!payload.title) { alert("Tytuł jest wymagany."); return; }
+    if (id) {
+      await updateTask(id, payload);
+      alert("Zaktualizowano zadanie.");
+    } else {
+      await createTask(payload);
+      alert("Dodano zadanie.");
+    }
+    resetForm();
+    await loadTasks();
+  } catch (err) {
+    console.error(err);
+    alert("Błąd zapisu: " + (err.message || err));
+  }
+});
+
+cancelBtn.addEventListener("click", (e)=>{
+  resetForm();
+});
+
+function resetForm(){
+  idInput.value="";
+  formTitle.innerText = "Dodaj nowe zadanie";
+  form.reset();
+  priorityInput.value = 3;
+}
+
+// table actions (delegation)
+tasksBody.addEventListener("click", async (e)=>{
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const tr = btn.closest("tr");
+  const id = tr ? tr.dataset.id : null;
+  if (!id) return;
+
+  if (action === "view") {
+    try {
+      const t = await getTask(id);
+      alert(`Szczegóły:\n\nTytuł: ${t.title}\nOpis: ${t.description || ""}\nPriorytet: ${t.priority}\nData: ${t.due_date ? new Date(t.due_date).toLocaleString() : ""}\nWykonane: ${t.completed ? "Tak" : "Nie"}`);
+    } catch (err){ alert("Błąd pobierania szczegółów."); console.error(err); }
+  } else if (action === "edit") {
+    try {
+      const t = await getTask(id);
+      idInput.value = t.id;
+      titleInput.value = t.title || "";
+      descInput.value = t.description || "";
+      priorityInput.value = t.priority ?? 3;
+      dueDateInput.value = t.due_date ? new Date(t.due_date).toISOString().slice(0,10) : "";
+      completedInput.checked = !!t.completed;
+      formTitle.innerText = "Edytuj zadanie";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err){ alert("Błąd pobierania do edycji."); console.error(err); }
+  } else if (action === "delete") {
+    if (!confirm("Na pewno usunąć to zadanie?")) return;
+    try {
+      await deleteTask(id);
+      alert("Usunięto.");
+      await loadTasks();
+    } catch (err) { alert("Błąd usuwania."); console.error(err); }
+  }
+});
+
+// search/filter/refresh
+searchInput.addEventListener("input", debounce(loadTasks, 400));
+filterSelect.addEventListener("change", loadTasks);
+refreshBtn.addEventListener("click", loadTasks);
+
+// simple debounce
+function debounce(fn, ms){
+  let t;
+  return function(...a){ clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }
+}
+
+// initial
+resetForm();
+loadTasks();
