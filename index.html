@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Encja CRUD — Frontend (Supabase)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Encja CRUD — Entities</h1>
+
+    <section class="form-section">
+      <h2 id="form-title">Dodaj nową encję</h2>
+      <form id="entity-form">
+        <input type="hidden" id="entity-id" />
+        <label>Title (tekst, wymagane)
+          <input id="title" required minlength="2" maxlength="200" />
+        </label>
+
+        <label>Amount (liczba, wymagane)
+          <input id="amount" type="number" required step="0.01" />
+        </label>
+
+        <label>Description (tekst)
+          <textarea id="description" rows="3"></textarea>
+        </label>
+
+        <label>Due date (data)
+          <input id="due_date" type="date" />
+        </label>
+
+        <label>Status (tekst; np. open/closed)
+          <input id="status" />
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" id="save-btn">Zapisz</button>
+          <button type="button" id="cancel-btn">Anuluj</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="list-section">
+      <h2>Lista encji</h2>
+      <div class="toolbar">
+        <input id="filter-input" placeholder="Filtruj po tytule..." />
+        <button id="refresh-btn">Odśwież</button>
+      </div>
+      <table id="entities-table">
+        <thead>
+          <tr>
+            <th>id</th><th>title</th><th>amount</th><th>due_date</th><th>status</th><th>created_at</th><th>actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <footer>
+      <small>Uwaga: podaj SWÓJ SUPABASE_URL i SUPABASE_ANON_KEY w pliku <code>script.js</code> (const SUPABASE_URL / SUPABASE_ANON_KEY).</small>
+    </footer>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
