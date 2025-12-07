@@ -1,45 +1,56 @@
 body {
   font-family: Arial, sans-serif;
-  max-width: 900px;
-  margin: auto;
+  background: #f4f4f4;
+  margin: 0;
   padding: 20px;
 }
 
-form {
-  display: grid;
-  gap: 10px;
-  max-width: 500px;
+.container {
+  max-width: 900px;
+  margin: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+h1, h2 {
+  margin-top: 0;
+}
+
+.actions {
   margin-bottom: 20px;
 }
 
-label {
-  display: flex;
-  flex-direction: column;
-  font-weight: bold;
+button {
+  padding: 6px 12px;
+  margin-right: 5px;
 }
 
-input, textarea, select, button {
-  padding: 8px;
-  margin-top: 4px;
-  font-size: 1rem;
-}
-
-.checkbox-row {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
+.hidden {
+  display: none;
 }
 
 table {
-  width: 100%;
   border-collapse: collapse;
+  width: 100%;
 }
 
-th, td {
+table th, table td {
+  border: 1px solid #ccc;
   padding: 8px;
-  border: 1px solid #ddd;
 }
 
-button.action {
-  margin-right: 5px;
+.muted {
+  color: #666;
+}
+
+.checkbox-area {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-actions {
+  margin-top: 15px;
 }
